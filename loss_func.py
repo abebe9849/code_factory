@@ -3,6 +3,8 @@ import numpy as np
 import torch.nn as nn
 import pandas as pd
 import torch.nn.functional as F
+from torch.nn import Parameter
+import math
 
 class FocalLoss_BCE_withlogit(nn.Module):##マルチラベルのとき
     def __init__(self, gamma=2.0, alpha=None, reduction="mean"):
@@ -41,3 +43,105 @@ class Kloss(nn.Module):
         loss = 1.0 - (2.0*((input-self.y_shift)*(target-self.y_shift)).sum() - 1e-3)/\
         (((input-self.y_shift)**2).sum() + ((target-self.y_shift)**2).sum() + 1e-3)
         return loss
+class SmoothCrossEntropy(nn.Module):
+    
+    # From https://www.kaggle.com/shonenkov/train-inference-gpu-baseline
+    def __init__(self, smoothing = 0.05):
+        super().__init__()
+        self.confidence = 1.0 - smoothing
+        self.smoothing = smoothing
+
+    def forward(self, x, target):
+        if self.training:
+            x = x.float()
+            target = F.one_hot(target.long(), x.size(1))
+            target = target.float()
+            logprobs = F.log_softmax(x, dim = -1)
+
+            nll_loss = -logprobs * target
+            nll_loss = nll_loss.sum(-1)
+    
+            smooth_loss = -logprobs.mean(dim=-1)
+
+            loss = self.confidence * nll_loss + self.smoothing * smooth_loss
+
+            return loss.mean()
+        else:
+            return F.cross_entropy(x, target.long())
+ 
+
+
+class DenseCrossEntropy(nn.Module):
+
+    def forward(self, x, target):
+        x = x.float()
+        target = target.float()
+        logprobs = torch.nn.functional.log_softmax(x, dim=-1)
+
+        loss = -logprobs * target
+        loss = loss.sum(-1)
+        return loss.mean()
+    
+    
+class ArcFaceLoss(nn.Module):
+
+    def __init__(self, s=30.0, m=0.5):
+        super().__init__()
+        self.crit = DenseCrossEntropy()
+        self.s = s
+        self.cos_m = math.cos(m)
+        self.sin_m = math.sin(m)
+        self.th = math.cos(math.pi - m)
+        self.mm = math.sin(math.pi - m) * m
+
+    def forward(self, logits, labels):
+        labels = F.one_hot(labels.long(), logits.size(1)).float().to(labels.device)
+        logits = logits.float()
+        cosine = logits
+        sine = torch.sqrt(1.0 - torch.pow(cosine, 2))
+        phi = cosine * self.cos_m - sine * self.sin_m
+        phi = torch.where(cosine > self.th, phi, cosine - self.mm)
+
+        output = (labels * phi) + ((1.0 - labels) * cosine)
+        output *= self.s
+        loss = self.crit(output, labels)
+        return loss
+    
+    
+##adacos...https://github.com/4uiiurz1/pytorch-adacos/blob/master/metrics.py
+class AdaCos(nn.Module):
+    def __init__(self, num_features, num_classes, m=0.50):
+        super(AdaCos, self).__init__()
+        self.num_features = num_features
+        self.n_classes = num_classes
+        self.s = math.sqrt(2) * math.log(num_classes - 1)
+        self.m = m
+        self.W = Parameter(torch.FloatTensor(num_classes, num_features))
+        nn.init.xavier_uniform_(self.W)
+
+    def forward(self, input, label=None):
+        # normalize features
+        x = F.normalize(input)
+        # normalize weights
+        W = F.normalize(self.W)
+        # dot product
+        logits = F.linear(x, W)
+        if label is None:
+            return logits
+        # feature re-scale
+        theta = torch.acos(torch.clamp(logits, -1.0 + 1e-7, 1.0 - 1e-7))
+        one_hot = torch.zeros_like(logits)
+        one_hot.scatter_(1, label.view(-1, 1).long(), 1)
+        with torch.no_grad():
+            B_avg = torch.where(one_hot < 1, torch.exp(self.s * logits), torch.zeros_like(logits))
+            B_avg = torch.sum(B_avg) / input.size(0)
+            # print(B_avg)
+            theta_med = torch.median(theta[one_hot == 1])
+            self.s = torch.log(B_avg) / torch.cos(torch.min(math.pi/4 * torch.ones_like(theta_med), theta_med))
+        output = self.s * logits
+
+        return output
+    
+
+
+

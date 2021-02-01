@@ -70,7 +70,7 @@ def make_random_walks(G, num_walk, length_of_walk):
     #ランダムウォークで歩いたノードを入れるlistを生成
     paths = list()
     #node_list = list(G.nodes())
-    node_list = df_network["corporation_id1"].unique()
+    node_list = df_network["col1"].unique()
     #ランダムウォークを擬似的に行う
     for i in range(num_walk):
         for node in node_list:
@@ -109,7 +109,7 @@ def make_node2vec(G, num_walk, length_of_walk,p=1,q=1):
     #ランダムウォークで歩いたノードを入れるlistを生成
     paths = list()
     #node_list = list(G.nodes())
-    node_list = df_network["corporation_id1"].unique()
+    node_list = df_network["col1"].unique()
     #ランダムウォークを擬似的に行う
     for i in range(num_walk):
         for node in node_list:

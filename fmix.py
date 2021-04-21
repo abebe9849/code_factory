@@ -188,3 +188,116 @@ class FMixBase:
 
     def loss(self, *args, **kwargs):
         raise NotImplementedError
+        
+
+import numpy as np
+import torch,torchvision
+
+def mixup_data(x, y, alpha=1.0, use_cuda=True):
+    '''Returns mixed inputs, pairs of targets, and lambda'''
+    if alpha > 0:lam = np.random.beta(alpha, alpha)
+    else:lam = 1
+    batch_size = x.shape[0]#bs,seq_len,depth
+    if use_cuda:
+        index = torch.randperm(batch_size).cuda()
+    else:
+        index = torch.randperm(batch_size)
+    mixed_x = lam * x + (1 - lam) * x[index, :,:]
+    y_a, y_b = y, y[index]
+    return mixed_x, y_a, y_b, lam
+
+def rand_bbox(size, lam):
+    W = size[0]
+    H = size[1]
+    cut_rat = np.sqrt(1. - lam)
+    cut_w = np.int(W * cut_rat)
+    cut_h = np.int(H * cut_rat)
+    cx = np.random.randint(W)
+    cy = np.random.randint(H)
+    bbx1 = np.clip(cx - cut_w // 2, 0, W)
+    bby1 = np.clip(cy - cut_h // 2, 0, H)
+    bbx2 = np.clip(cx + cut_w // 2, 0, W)
+    bby2 = np.clip(cy + cut_h // 2, 0, H)
+    return bbx1, bby1, bbx2, bby2
+
+
+def cutmix_data(x, y, alpha=1.0, use_cuda=True):
+    '''Returns mixed inputs, pairs of targets, and lambda'''
+    if alpha > 0:lam = np.random.beta(alpha, alpha)
+    else:lam = 1
+    batch_size = x.shape[0]#bs,seq_len,depth
+    if use_cuda:
+        index = torch.randperm(batch_size).cuda()
+    else:
+        index = torch.randperm(batch_size)
+    bx1, by1, bx2, by2 = rand_bbox(x.shape[-2:], lam)
+    cutmix_img = x[index].clone()
+    cutmix_img = cutmix_img[:,:,bx1:bx2, by1:by2]
+    x[:,:,bx1:bx2, by1:by2] = cutmix_img
+    del cutmix_img
+    y_a, y_b = y, y[index]
+    return x, y_a, y_b, lam
+
+def resizemix_data(x, y, alpha=1.0, use_cuda=True):
+    '''Returns mixed inputs, pairs of targets, and lambda'''
+    if alpha > 0:lam = np.random.beta(alpha, alpha)
+    else:lam = 1
+    batch_size = x.shape[0]#bs,seq_len,depth
+    if use_cuda:
+        index = torch.randperm(batch_size).cuda()
+    else:
+        index = torch.randperm(batch_size)
+    
+    bx1, by1, bx2, by2 = rand_bbox(x.shape[-2:], lam)
+    x_len = bx2-bx1
+    y_len = by2-by1
+    resize_func = torchvision.transforms.Resize((x_len,y_len))
+    cutmix_img = x[index].clone()
+    cutmix_img = resize_func(cutmix_img)
+
+    x[:,:,bx1:bx2, by1:by2] = cutmix_img
+    del cutmix_img
+    y_a, y_b = y, y[index]
+    return x, y_a, y_b, lam
+
+
+def fmix_data(x, y, alpha=1.0, use_cuda=True):
+    '''Returns mixed inputs, pairs of targets, and lambda'''
+    if alpha > 0:lam = np.random.beta(alpha, alpha)
+    else:lam = 1
+    batch_size = x.shape[0]#bs,seq_len,depth
+    if use_cuda:
+        index = torch.randperm(batch_size).cuda()
+    else:
+        index = torch.randperm(batch_size)
+    fmix_img = x[index].clone()
+    l_param, mask = sample_mask(lam, decay_power=3, shape=x.shape[-2:], max_soft=0.0, reformulate=False)
+    mask = torch.from_numpy(mask).to(x.device)
+    x1 = mask*x
+    x2 = (1-mask)*fmix_img
+    image = x1+x2
+    y_a, y_b = y, y[index]
+    rate = mask.sum()/x.shape[-1]/x.shape[-2]
+    return image, y_a, y_b, rate
+
+
+def mixup_criterion(criterion, pred, y_a, y_b, lam):
+    return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
+
+"""
+            ### mix系のaugumentation=========
+            rand = np.random.rand()
+            if epoch+1 >=CFG.train.without_hesitate:
+                rand=0
+            if CFG.augmentation.mix_p>rand and CFG.augmentation.do_mixup:
+                images, y_a, y_b, lam = mixup_data(images, onehot_label,alpha=CFG.augmentation.mix_alpha)
+            elif CFG.augmentation.mix_p>rand and CFG.augmentation.do_cutmix:
+                images, y_a, y_b, lam = cutmix_data(images, onehot_label,alpha=CFG.augmentation.mix_alpha)
+            elif CFG.augmentation.mix_p>rand and CFG.augmentation.do_resizemix:
+                images, y_a, y_b, lam = resizemix_data(images, onehot_label,alpha=CFG.augmentation.mix_alpha)
+            elif CFG.augmentation.mix_p>rand and CFG.augmentation.do_fmix:
+                images, y_a, y_b, lam = fmix_data(images, onehot_label,alpha=CFG.augmentation.mix_alpha)
+            ### mix系のaugumentation おわり=========
+
+
+"""

@@ -301,3 +301,49 @@ def mixup_criterion(criterion, pred, y_a, y_b, lam):
 
 
 """
+
+##specmix freesound 8th rainforest 3rd (https://www.kaggle.com/c/rfcx-species-audio-detection/discussion/220522)
+
+def spec_mask(spec: np.ndarray,
+                 num_mask=2,
+                 freq_masking=0.15,
+                 time_masking=0.20,
+                 value=1):
+    mask = np.zeros_like(spec)
+    num_mask = random.randint(1, num_mask)
+    for i in range(num_mask):
+        all_freqs_num, all_frames_num  = spec.shape
+        freq_percentage = random.uniform(0.0, freq_masking)
+
+        num_freqs_to_mask = int(freq_percentage * all_freqs_num)
+        f0 = np.random.uniform(low=0.0, high=all_freqs_num - num_freqs_to_mask)
+        f0 = int(f0)
+        mask[f0:f0 + num_freqs_to_mask, :] = value
+
+        time_percentage = random.uniform(0.0, time_masking)
+
+        num_frames_to_mask = int(time_percentage * all_frames_num)
+        t0 = np.random.uniform(low=0.0, high=all_frames_num - num_frames_to_mask)
+        t0 = int(t0)
+        spec[:, t0:t0 + num_frames_to_mask] = value
+    return mask
+
+def specmix(x, y, use_cuda=True,num_mask=1,freq_masking=0.15,time_masking=0.20):
+    else:lam = 1
+    batch_size = x.shape[0]#bs,seq_len,depth
+    if use_cuda:
+        index = torch.randperm(batch_size).cuda()
+    else:
+        index = torch.randperm(batch_size)
+
+    mask = sample_mask(spec: np.ndarray,num_mask=2,freq_masking=0.15,time_masking=0.20)
+    mask = torch.from_numpy(mask).to(x.device)
+
+    specmix_img = x[index].clone()
+
+    x1 = mask*x
+    x2 = (1-mask)*specmix_img
+    image = x1+x2
+    y_a, y_b = y, y[index]
+    rate = mask.sum()/x.shape[-1]/x.shape[-2]
+    return image, y_a, y_b, rate

@@ -347,3 +347,38 @@ def specmix(x, y, use_cuda=True,num_mask=1,freq_masking=0.15,time_masking=0.20):
     y_a, y_b = y, y[index]
     rate = mask.sum()/x.shape[-1]/x.shape[-2]
     return image, y_a, y_b, rate
+
+
+## swap_DAEに使う
+def swap_noise_data0(x, use_cuda=True):
+    '''
+    Columnwise swap noise
+    ##数値データじゃないとこでnoiseかけるのまずい
+    https://www.kaggle.com/springmanndaniel/1st-place-turn-your-data-into-daeta
+    '''
+    batch_size = x.shape[0]#bs,seq_len,depth
+    if use_cuda:
+        index = torch.randperm(batch_size).cuda()
+    else:
+        index = torch.randperm(batch_size)
+    swap_col = np.random.choise(range(x.shape[-1]))
+    x[:,swap_col] = x[index,swap_col]
+    return x
+
+def swap_noise_data1(x, use_cuda=True):
+    '''
+    rowwise swap noise
+    ##数値データじゃないとこでnoiseかけるのまずい
+    ## DAE block 1c はこっち
+    https://www.kaggle.com/springmanndaniel/1st-place-turn-your-data-into-daeta
+    '''
+    batch_size = x.shape[0]#bs,seq_len,depth
+    if use_cuda:
+        index = torch.randperm(batch_size).cuda()
+    else:
+        index = torch.randperm(batch_size)
+    mixed_x = x.clone()
+    for i,idx in enumerate(index):
+        swap_col = np.random.choise(range(x.shape[-1]))
+        x[i,swap_col] = mixed_x[idx,swap_col]
+    return x

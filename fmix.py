@@ -193,6 +193,8 @@ class FMixBase:
 import numpy as np
 import torch,torchvision
 
+
+
 def mixup_data(x, y, alpha=1.0, use_cuda=True):
     '''Returns mixed inputs, pairs of targets, and lambda'''
     if alpha > 0:lam = np.random.beta(alpha, alpha)
@@ -205,6 +207,36 @@ def mixup_data(x, y, alpha=1.0, use_cuda=True):
     mixed_x = lam * x + (1 - lam) * x[index, :,:]
     y_a, y_b = y, y[index]
     return mixed_x, y_a, y_b, lam
+
+def mixup_data_random(x, y, alpha=1.0,rand=0.05, use_cuda=True):
+    '''Returns mixed inputs, pairs of targets, and lambda'''
+    alpha = np.random.uniform(alpha-rand,alpha+rand)
+    if alpha > 0:lam = np.random.beta(alpha, alpha)
+    else:lam = 1
+    batch_size = x.shape[0]#bs,seq_len,depth
+    if use_cuda:
+        index = torch.randperm(batch_size).cuda()
+    else:
+        index = torch.randperm(batch_size)
+    mixed_x = lam * x + (1 - lam) * x[index, :,:]
+    y_a, y_b = y, y[index]
+    return mixed_x, y_a, y_b, lam
+
+def mixup_data_uniform(x, y,clips=[0.3,0.7],use_cuda=True):
+    '''
+    https://www.kaggle.com/c/bengaliai-cv19/discussion/136025
+    chirs use this alpha = np.random.uniform(0.19,0.31)  for cutmix
+    '''
+    lam = np.random.uniform(clips[0], clips[1])
+    batch_size = x.shape[0]#bs,seq_len,depth
+    if use_cuda:
+        index = torch.randperm(batch_size).cuda()
+    else:
+        index = torch.randperm(batch_size)
+    mixed_x = lam * x + (1 - lam) * x[index, :,:]
+    y_a, y_b = y, y[index]
+    return mixed_x, y_a, y_b, lam
+
 
 def rand_bbox(size, lam):
     W = size[0]
@@ -301,9 +333,44 @@ def mixup_criterion(criterion, pred, y_a, y_b, lam):
 
 
 """
+def ricap_data(x, y, alpha=1.0, use_cuda=True):
+    '''
+    https://github.com/knjcode/pytorch-finetuner/blob/master/train.py
+    '''
+    if alpha > 0:lam = np.random.beta(alpha, alpha)
+    else:lam = 1
+    batch_size = x.shape[0]#bs,seq_len,depth
+    I_x, I_y = x.size()[2:]
+    w = int(np.round(I_x * lam))
+    h = int(np.round(I_y * lam))
+    w_ = [w, I_x - w, w, I_x - w]
+    h_ = [h, h, I_y - h, I_y - h]
+    cropped_images = {}
+    c_ = {}
+    W_ = {}
+    for k in range(4):
+        if use_cuda:
+            index = torch.randperm(batch_size).cuda()
+        else:
+            index = torch.randperm(batch_size)
+        x_k = np.random.randint(0, I_x - w_[k] + 1)
+        y_k = np.random.randint(0, I_y - h_[k] + 1)
+        cropped_images[k] = x[index][:, :, x_k:x_k + w_[k], y_k:y_k + h_[k]]
+        c_[k] = y[index]
+        W_[k] = w_[k] * h_[k] / (I_x * I_y)
+    patched_images = torch.cat(
+                (torch.cat((cropped_images[0], cropped_images[1]), 2),
+                torch.cat((cropped_images[2], cropped_images[3]), 2)), 3)
+
+    return patched_images, W_, c_
+
+def ricap_criterion(criterion, pred, W_, c_):
+    return sum(W_[k] * criterion(pred, c_[k]) for k in range(4))
 
 ##specmix freesound 8th rainforest 3rd (https://www.kaggle.com/c/rfcx-species-audio-detection/discussion/220522)
 
+##動くか要検証
+"""
 def spec_mask(spec: np.ndarray,
                  num_mask=2,
                  freq_masking=0.15,
@@ -329,6 +396,7 @@ def spec_mask(spec: np.ndarray,
     return mask
 
 def specmix(x, y, use_cuda=True,num_mask=1,freq_masking=0.15,time_masking=0.20):
+    if alpha > 0:lam = np.random.beta(alpha, alpha)
     else:lam = 1
     batch_size = x.shape[0]#bs,seq_len,depth
     if use_cuda:
@@ -347,6 +415,9 @@ def specmix(x, y, use_cuda=True,num_mask=1,freq_masking=0.15,time_masking=0.20):
     y_a, y_b = y, y[index]
     rate = mask.sum()/x.shape[-1]/x.shape[-2]
     return image, y_a, y_b, rate
+"""
+
+
 
 
 ## swap_DAEに使う

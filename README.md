@@ -13,6 +13,6 @@ pooling：concatpool,gem
 
 wsi2tile:WSI→patchのときに背景を効率的に除去
 
-https://github.com/TissueImageAnalytics/tiatoolbox/tree/develop/examples　MICCAIのドメインシフトあり病理物体検出2nd　を使えば良いのかも
+https://github.com/TissueImageAnalytics/tiatoolbox/tree/develop/examples　　　　MICCAIのドメインシフトあり病理物体検出2nd　を使えば良いのかも
 
 他にも色々

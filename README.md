@@ -9,4 +9,6 @@ kaggleのライブラリ-
 
 pooling：concatpool,gem 
 
+埋め込み：item2vec(atma6)
+
 他にも色々

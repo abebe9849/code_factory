@@ -15,6 +15,6 @@ wsi2tile:WSI→patchのときに背景を効率的に除去
 
 MICCAIのドメインシフトあり病理物体検出2ndの[ツール](https://github.com/TissueImageAnalytics/tiatoolbox/tree/develop/examples　)　を使えば良いのかも
 
-mmdetのための環境(torch1.10.0 cuda11.3)
+mmdetのための環境(torch1.10.0 cuda11.3) →conda env create -f=env_name.yml
 
 他にも色々

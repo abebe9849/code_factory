@@ -268,6 +268,7 @@ def cutmix_data(x, y, alpha=1.0, use_cuda=True):
     x[:,:,bx1:bx2, by1:by2] = cutmix_img
     del cutmix_img
     y_a, y_b = y, y[index]
+    lam = 1 - ((bx2 - bx1) * (by2 - by1) / (x.shape[-1]*x.shape[-2]))
     return x, y_a, y_b, lam
 
 def resizemix_data(x, y, alpha=1.0, use_cuda=True):
@@ -290,6 +291,7 @@ def resizemix_data(x, y, alpha=1.0, use_cuda=True):
     x[:,:,bx1:bx2, by1:by2] = cutmix_img
     del cutmix_img
     y_a, y_b = y, y[index]
+    lam = 1 - ((bx2 - bx1) * (by2 - by1) / (x.shape[-1]*x.shape[-2]))
     return x, y_a, y_b, lam
 
 

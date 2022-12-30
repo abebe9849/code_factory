@@ -53,6 +53,8 @@ def plot_confusion_matrix(y_true, y_pred, classes,
     
     divider = make_axes_locatable(ax)
     cax = divider.append_axes('right', size="5%", pad=0.15)
+    if normalize:
+        im.set_clim(0,1)
     cbar = ax.figure.colorbar(im, ax=ax, cax=cax)
     cbar.ax.tick_params(labelsize=20)
     
